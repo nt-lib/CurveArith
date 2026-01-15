@@ -99,7 +99,7 @@ The integer n indicates how many places of degree 1 should be in D.
     return CartesianProduct([S1] cat [Multisets({1..degree_counts[i]}, degree_partition[i]) : i in [2..d]]);
 end function;
 
-function DivisorCandidates(degree_counts, n, cache, filter : First := false)
+function DivisorCandidates(degree_counts, n, cache, filter : First := false, MaximumTime := Infinity())
 /* Loop over all divisors D of degree equal to #degree_counts and return those that satisfy filter(D) eq true.  See DivisorCandidatesByPartition how divisors are
 represented.
 Cache can be anything and will be passed to the filter function. It can be used to make sure that the filter function has access to
@@ -110,10 +110,11 @@ If First is true (default = false) then only return the first divisor that satis
 The integer n gives a lower bound on how many places of degree 1 should be in the divisor D. So setting n=0 causes the code 
 to loop over all divisors D of degree equal to #degree_counts.
 */
+    start_time := Realtime();
     d := #degree_counts;
     divisors := [];
     divisors_tried := 0;
-    for degree_partition0 in IntegerSolutions([1..Max(d-n,1)],d-n) do
+    for degree_partition0 in IntegerSolutions([1..Max(d - n, 1)], d - n) do
         degree_partition := degree_partition0;
         degree_partition[1] := degree_partition[1] + n;
         vprint Gonality: "Testing divisors of shape", degree_partition;
@@ -123,24 +124,33 @@ to loop over all divisors D of degree equal to #degree_counts.
                 if First then return [D], divisors_tried; end if;
                 Append(~divisors, D);
             end if;
+
+            if Realtime(start_time) ge MaximumTime then
+                return -1, divisors_tried;
+            end if;
         end for;
     end for;
     return divisors, divisors_tried;
 end function;
 
-function PrecomputePowerseriesExpansions(FF, places, d)
+function PrecomputePowerseriesExpansions(FF, places, d : MaximumTime := Infinity())
     // The PowerseriesExpansions at all x in places
     // up to precision d/deg(x)
     /*
     Returns expansions, where expansions[i][j][k] stores the (k-1)th coordinate of the expansion of
     the basis differentials of FF at degree i place places[i][j]. 
     */
+    start_time := Realtime();
     expansions := <>;
     differentials := BasisOfHolomorphicDifferentials(FF);
     for i in [1..#places] do
         degree_i_expansions := [];
         for x in places[i] do
             Append(~degree_i_expansions, DifferentialExpansionMatrices(differentials, x, d div i));
+
+            if Realtime(start_time) ge MaximumTime then
+                return -1;
+            end if;
         end for;
         Append(~expansions, degree_i_expansions);
     end for;
@@ -174,15 +184,16 @@ end function;
 
 declare verbose Gonality, 1;
 
-timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time>;
+timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
-intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", TimingData := false) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false) -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
     if DimensionOfExactConstantField(FF) ne 1 then
-        return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method);
+        return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
     end if;
 
-    timing_data := rec<timing_data_format | place_degree_bound := 0, places := 0, divisors := 0, place_enumeration_time := 0, expansions_time := 0, riemann_roch_time := 0>;
+    start_time := Realtime();
+    timing_data := rec<timing_data_format | place_degree_bound := 0, places := 0, divisors := 0, place_enumeration_time := 0, expansions_time := 0, riemann_roch_time := 0, timeout := false>;
 
     if d gt Genus(FF) then
         if TimingData then
@@ -192,10 +203,10 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
         end if;
     end if;
     
-    start_time := Cputime();
+    place_start_time := Cputime();
     timing_data`place_degree_bound := 1;
     timing_data`places := #Places(FF, 1);
-    timing_data`place_enumeration_time := Cputime(start_time);
+    timing_data`place_enumeration_time := Cputime(place_start_time);
 
     if d eq Genus(FF) and #Places(FF, 1) gt 0 then
         if TimingData then
@@ -220,25 +231,45 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
     places := [Places(FF, i) : i in [1..(d - n1)]] cat [[] : i in [1..n1]];
     degree_counts := [#p : p in places];
     timing_data`places := &+degree_counts;
-    timing_data`place_enumeration_time := Cputime(start_time);
+    timing_data`place_enumeration_time := Cputime(place_start_time);
 
     case Method:
         when "Linear algebra":
             vprint Gonality: "Precomputing power series expansions";
-            start_time := Cputime();
-            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, d);
-            timing_data`expansions_time := Cputime(start_time);
+            expansion_start_time := Cputime();
+            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, d : MaximumTime := MaximumTime - Realtime(start_time));
+            timing_data`expansions_time := Cputime(expansion_start_time);
 
-            start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := true);
-            timing_data`riemann_roch_time := Cputime(start_time);
+            if powerseries_expansions cmpeq -1 then
+                // Timeout
+                timing_data`timeout := true;
+                if TimingData then
+                    return -1, timing_data;
+                else
+                    return -1;
+                end if;
+            end if;
+
+            riemann_roch_start_time := Cputime();
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := true, MaximumTime := MaximumTime - Realtime(start_time));
+            timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         when "Hess":
-            start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := true);
-            timing_data`riemann_roch_time := Cputime(start_time);
+            riemann_roch_start_time := Cputime();
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := true, MaximumTime := MaximumTime - Realtime(start_time));
+            timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         else:
             error "Method must be \"Linear algebra\" or \"Hess\"";
     end case;
+
+    if g_d_1s cmpeq -1 then
+        // Timeout
+        timing_data`timeout := true;
+        if TimingData then
+            return -1, timing_data;
+        else
+            return -1;
+        end if;
+    end if;
 
     if TimingData then
         return #g_d_1s ge 1, timing_data;
@@ -247,7 +278,7 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
     end if;
 end intrinsic;
 
-intrinsic Gonality(FF::FldFun : Bound := -1, Method := "Linear algebra") -> RngIntElt
+intrinsic Gonality(FF::FldFun : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the function field FF. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -267,10 +298,15 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
         return 2;
     end if;
 
+    start_time := Realtime();
     d := 1;
     while d ne Bound+1 do
         vprint Gonality: "Trying degree", d;
-        if HasFunctionOfDegreeAtMost(FF, d : Method := Method) then
+        has_function := HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime - Realtime(start_time));
+        if has_function cmpeq -1 then
+            // Timeout
+            return -1;
+        elif has_function then
             break;
         end if;
         d +:= 1;
@@ -278,13 +314,13 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     return d;
 end intrinsic;
 
-intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", TimingData := false) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false) -> BoolElt
 { Returns whether there is a function on C with degree at most d. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return HasFunctionOfDegreeAtMost(FF, d : Method := Method, TimingData := TimingData);
+    return HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
 end intrinsic;
 
-intrinsic Gonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra") -> RngIntElt
+intrinsic Gonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the curve C. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -294,7 +330,7 @@ at most Bound + 1; And the meaning of d is as follows:
 If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return Gonality(FF : Bound := Bound, Method := Method);
+    return Gonality(FF : Bound := Bound, Method := Method, MaximumTime := MaximumTime);
 end intrinsic;
 
 /* Example usage
