@@ -16,7 +16,7 @@ function UniformizingParameter(fs, x)
 Given a sequence fs of functions on a function field and a place x on the same function field,
 returns an element of the function field with valuation 1 at x.
 
-TODO: doesn't work if X is hyperelliptic
+TODO: can remove fallback if X is hyperelliptic by computing a Weierstrass model uing IsHyperelliptic and working with functions on it
 */
     CF := ConstantField(FunctionField(x));
     
@@ -40,7 +40,7 @@ the Laurent series expansion of each differential of omegas at x.
     CF := ConstantField(F);
     du := UniformizingDifferential(omegas, x);
     
-    fs := [F!RationalFunction(omega/du) : omega in omegas]; // Why does RationalFunction make Evaluate much faster on non-canonical models?
+    fs := [F!RationalFunction(omega/du) : omega in omegas]; // Why does RationalFunction make Evaluate much faster in certain cases?
     as := [Eltseq(Evaluate(f, x), CF) : f in fs];
     expansions := [Matrix(as)];
     
@@ -165,12 +165,17 @@ function HasNonconstantFunction(D, powerseries_expansions)
     return r lt d;
 end function;
 
+function HasNonconstantFunctionHess(D, places)
+    divisor := &+[exponent * Divisor(places[degree][place]) : place -> exponent in multiset, degree -> multiset in D];
+    return Dimension(divisor) gt 1;
+end function;
+
 declare verbose Gonality, 1;
 
-intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra") -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
     if DimensionOfExactConstantField(FF) ne 1 then
-        return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF));
+        return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method);
     end if;
 
     if d gt Genus(FF) or d eq Genus(FF) and #Places(FF, 1) gt 0 then
@@ -190,21 +195,32 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt) -> BoolElt
     n1 := Min(n,d-1);
     vprint Gonality: "Computing places of degree at most", d-n1;
     places := [Places(FF, i) : i in [1..(d-n1)]] cat [[] : i in [1..n1]];
+    degree_counts := [#p : p in places];
     t2 := Realtime();
 
-    degree_counts := [#p : p in places];
-    vprint Gonality: "Precomputing power series expansions";
-    powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, d);
-    t3 := Realtime();
+    case Method:
+        when "Linear algebra":
+            vprint Gonality: "Precomputing power series expansions";
+            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, d);
+            t3 := Realtime();
 
-    g_d_1s := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := true);
-    t4 := Realtime();
+            g_d_1s := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := true);
+            t4 := Realtime();
 
-    vprint Gonality: "HasFunctionOfDegreeAtMost timing data", [t1-t0,t2-t1,t3-t2,t4-t3];
+            vprint Gonality: "HasFunctionOfDegreeAtMost timing data", [t1-t0,t2-t1,t3-t2,t4-t3];
+        when "Hess":
+            g_d_1s := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := true);
+            t3 := Realtime();
+
+            vprint Gonality: "HasFunctionOfDegreeAtMost timing data", [t1-t0,t2-t1,t3-t2];
+        else:
+            error "Method must be \"Linear algebra\" or \"Hess\"";
+    end case;
+
     return #g_d_1s ge 1;
 end intrinsic;
 
-intrinsic Gonality(FF::FldFun : Bound := -1) -> RngIntElt
+intrinsic Gonality(FF::FldFun : Bound := -1, Method := "Linear algebra") -> RngIntElt
 { Computes the gonality of the function field FF. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -227,7 +243,7 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     d := 1;
     while d ne Bound+1 do
         vprint Gonality: "Trying degree", d;
-        if HasFunctionOfDegreeAtMost(FF, d) then
+        if HasFunctionOfDegreeAtMost(FF, d : Method := Method) then
             break;
         end if;
         d +:= 1;
@@ -235,13 +251,13 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     return d;
 end intrinsic;
 
-intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra") -> BoolElt
 { Returns whether there is a function on C with degree at most d. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return HasFunctionOfDegreeAtMost(FF, d);
+    return HasFunctionOfDegreeAtMost(FF, d : Method := Method);
 end intrinsic;
 
-intrinsic Gonality(C::Crv[FldFin] : Bound := -1) -> RngIntElt
+intrinsic Gonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra") -> RngIntElt
 { Computes the gonality of the curve C. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -251,7 +267,7 @@ at most Bound + 1; And the meaning of d is as follows:
 If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return Gonality(FF : Bound := Bound);
+    return Gonality(FF : Bound := Bound, Method := Method);
 end intrinsic;
 
 /* Example usage
