@@ -133,9 +133,9 @@ to loop over all divisors D of degree equal to #degree_counts.
     return divisors, divisors_tried;
 end function;
 
-function PrecomputePowerseriesExpansions(FF, places, d : MaximumTime := Infinity())
+function PrecomputePowerseriesExpansions(FF, places, precisions : MaximumTime := Infinity())
     // The PowerseriesExpansions at all x in places
-    // up to precision d/deg(x)
+    // up to precision precisions[deg(x)]
     /*
     Returns expansions, where expansions[i][j][k] stores the (k-1)th coordinate of the expansion of
     the basis differentials of FF at degree i place places[i][j]. 
@@ -146,7 +146,7 @@ function PrecomputePowerseriesExpansions(FF, places, d : MaximumTime := Infinity
     for i in [1..#places] do
         degree_i_expansions := [];
         for x in places[i] do
-            Append(~degree_i_expansions, DifferentialExpansionMatrices(differentials, x, d div i));
+            Append(~degree_i_expansions, DifferentialExpansionMatrices(differentials, x, precisions[i]));
 
             if Realtime(start_time) ge MaximumTime then
                 return -1;
@@ -237,7 +237,8 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
         when "Linear algebra":
             vprint Gonality: "Precomputing power series expansions";
             expansion_start_time := Cputime();
-            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, d : MaximumTime := MaximumTime - Realtime(start_time));
+            precisions := [i eq 1 select d else (d - n1) div i : i in [1..d]];
+            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, precisions : MaximumTime := MaximumTime - Realtime(start_time));
             timing_data`expansions_time := Cputime(expansion_start_time);
 
             if powerseries_expansions cmpeq -1 then
