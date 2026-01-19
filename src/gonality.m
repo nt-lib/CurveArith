@@ -186,7 +186,7 @@ declare verbose Gonality, 1;
 
 timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
-intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
     if DimensionOfExactConstantField(FF) ne 1 then
         return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
@@ -252,11 +252,11 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
             end if;
 
             riemann_roch_start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := true, MaximumTime := MaximumTime - Realtime(start_time));
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time));
             timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         when "Hess":
             riemann_roch_start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := true, MaximumTime := MaximumTime - Realtime(start_time));
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time));
             timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         else:
             error "Method must be \"Linear algebra\" or \"Hess\"";
@@ -315,10 +315,10 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     return d;
 end intrinsic;
 
-intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false) -> BoolElt
+intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on C with degree at most d. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
+    return HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst);
 end intrinsic;
 
 intrinsic Gonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
