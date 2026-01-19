@@ -130,6 +130,33 @@ end function;
 //   cg_data    F`classgroup_data
 //   log        F`classgroup_data`log
 
+procedure CachePlaceData(~cg_data, place, index)
+    if IsFinite(place) then
+        min := Minimum(place);
+        if IsDefined(cg_data`factor_basis_minima, min) then
+            Append(~cg_data`factor_basis_minima[min], index);
+        else
+            cg_data`factor_basis_minima[min] := [index];
+        end if;
+    else
+        Append(~cg_data`infinite_places, index);
+    end if;
+end procedure;
+
+procedure AddSupportOfDivisorToFactorBasis(~cg_data, D)
+    for p in Support(D) do
+        if not p in cg_data`factor_basis then
+            Include(~cg_data`factor_basis, p);
+            for _ in [#cg_data`factor_basis_count+1..Degree(p)] do
+                Append(~cg_data`factor_basis_count, 0);
+            end for;
+            cg_data`factor_basis_count[Degree(p)] +:= 1;
+
+            CachePlaceData(~cg_data, p, #cg_data`factor_basis);
+        end if;
+    end for;
+end procedure;
+
 procedure CreateFactorBasis(F, ~cg_data, degree_bound)
 /*
 Creates the factor basis consisting of all places of degree at most degree_bound and a divisor of degree 1
@@ -137,35 +164,17 @@ Creates the factor basis consisting of all places of degree at most degree_bound
 TODO: need to add the support of the base divisor to the factor basis
 */
     places := [Places(F, i) : i in [1..degree_bound]];
-    cg_data`factor_basis := &cat places;
+    cg_data`factor_basis := {@ p : p in x, x in places @};
     cg_data`factor_basis_count := [#x : x in places];
-
-    degree_one_divisor := DivisorOfDegreeOne(F);
-    for p in Support(degree_one_divisor) do
-        degree_p := Degree(p);
-        if degree_p gt degree_bound then
-            Append(~cg_data`factor_basis, p);
-            for _ in [#cg_data`factor_basis_count+1..degree_p] do
-                Append(~cg_data`factor_basis_count, 0);
-            end for;
-            cg_data`factor_basis_count[degree_p] +:= 1;
-        end if;
-    end for;
 
     cg_data`factor_basis_minima := AssociativeArray();
     cg_data`infinite_places := [];
     for i -> p in cg_data`factor_basis do
-        if IsFinite(p) then
-            min := Minimum(p);
-            if IsDefined(cg_data`factor_basis_minima, min) then
-                Append(~cg_data`factor_basis_minima[min], i);
-            else
-                cg_data`factor_basis_minima[min] := [i];
-            end if;
-        else
-            Append(~cg_data`infinite_places, i);
-        end if;
+        CachePlaceData(~cg_data, p, i);
     end for;
+
+    degree_one_divisor := DivisorOfDegreeOne(F);
+    AddSupportOfDivisorToFactorBasis(~cg_data, degree_one_divisor);
 end procedure;
 
 procedure InitializeClassGroupData(F)
@@ -406,6 +415,14 @@ of the rational function field k(t) and defined over its exact constant field.
         m := Ceiling((2 * Genus(F) + #F`classgroup_data`factor_basis_count) / Degree(x));
     else
         m := 0;
+    end if;
+
+    AddSupportOfDivisorToFactorBasis(~F`classgroup_data, BaseDivisor + m * Denominator(Divisor(x)));
+    if #F`classgroup_data`factor_basis gt Ncols(F`classgroup_data`relations) then
+        F`classgroup_data`empty_columns join:= SequenceToSet([Ncols(F`classgroup_data`relations)+1 .. #F`classgroup_data`factor_basis]);
+        F`classgroup_data`relations := HorizontalJoin(
+            F`classgroup_data`relations,
+            SparseMatrix(Nrows(F`classgroup_data`relations), #F`classgroup_data`factor_basis - Ncols(F`classgroup_data`relations)));
     end if;
 
     basis, basis_mult := ShortBasis(BaseDivisor);

@@ -44,25 +44,13 @@ Runtime error in '/': Division by zero
 */
         [7,  0],
         [11, 0],
-        //[13, -6],
-        [17,  2]//,
-        //[19,  0],
-        //[23,  0],
+        [13, -6],
+        [17,  2],
+        [19,  0],
+        [23,  0]//,
         //[29, 10]
         /*
-        The cases 13,19,23 all take too long. They take at least several minutes
-        while the other cases take less then a second:
-
-            3
-            Time: 0.050
-            7
-            Time: 0.140
-            11
-            Time: 0.180
-            17
-            Time: 0.350
-        
-        and 29 gives the same error as 5
+        The case 29 gives the same error as 5
         */
     ];
     for pair in traces do
