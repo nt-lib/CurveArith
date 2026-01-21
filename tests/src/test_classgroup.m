@@ -31,10 +31,9 @@ procedure TestClassGroupFldFunG()
     ];
     for pair in traces do
         p := pair[1];
-        print p;
         trace := pair[2];
         Kp := FunctionField(ChangeRing(f, GF(p)));
-        time CG := ClassGroup(Kp);
+        CG := ClassGroup(Kp);
         TSTAssertEQ(TorsionFreeRank(CG), 1);
         TSTAssertEQ(Order(TorsionSubgroup(CG)), (1 + p - trace)^3);
     end for;
