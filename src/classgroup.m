@@ -4,6 +4,7 @@ declare attributes FldFunG: classgroup_data;
 
 classgroup_data_format := recformat<
     factor_basis,           // Factor basis
+    factor_basis_degree,    // Largest degree d such that the factor basis contains all places of degree <= d
     factor_basis_count,     // Number of places in the factor basis of each degree
     factor_basis_minima,    // The indices of the places of the factor basis grouped by the underlying place in k(t)
     infinite_places,        // The indices of the infinite places of the factor basis
@@ -51,6 +52,33 @@ The formula used is due to Hess.
     end for;
     
     return psi[n + 1];
+end function;
+
+function NumberOfSmoothDivisorsDistinctSupport(n, m, P)
+/*
+Given two integers n and m and a sequence P containing the number of places of degree <= min(n, m) on a function field F,
+returns the number of effective divisors on F of degree n, consisting only of places of degree <= m and with distinct
+support.
+*/
+    if n lt 0 or m lt 0 then
+        return 0;
+    end if;
+
+    // psi[i+1][j+1] is the number of i-smooth divisors of degree j with distinct support
+    psi := [[1] cat [0 : _ in [1..n]]];
+    for i in [1..m] do
+        row := [1];
+        for j in [1..n] do
+            count := 0;
+            for k in [0..Minimum(P[i], j div i)] do
+                count +:= Binomial(P[i], k) * psi[i][j - k*i + 1];
+            end for;
+            Append(~row, count);
+        end for;
+        Append(~psi, row);
+    end for;
+
+    return psi[m+1][n+1];
 end function;
 
 function LeadingCoefficients(fs, p)
@@ -130,73 +158,63 @@ end function;
 //   cg_data    F`classgroup_data
 //   log        F`classgroup_data`log
 
-procedure CachePlaceData(~cg_data, place, index)
-    if IsFinite(place) then
-        min := Minimum(place);
-        if IsDefined(cg_data`factor_basis_minima, min) then
-            Append(~cg_data`factor_basis_minima[min], index);
-        else
-            cg_data`factor_basis_minima[min] := [index];
-        end if;
-    else
-        Append(~cg_data`infinite_places, index);
-    end if;
-end procedure;
+procedure CreateFactorBasis(F, ~cg_data, degree_bound, base_divisor)
+/*
+Creates the factor basis consisting of all places of degree at most degree_bound and the supports of base_divisor
+and a divisor of degree one.
+*/
+    // Enumerate all places of degree at most degree_bound
+    places := [Places(F, i) : i in [1..degree_bound]];
+    cg_data`factor_basis := [p : p in x, x in places];
+    cg_data`factor_basis_degree := degree_bound;
+    cg_data`factor_basis_count := [#x : x in places];
 
-procedure AddSupportOfDivisorToFactorBasis(~cg_data, D)
-    for p in Support(D) do
-        if not p in cg_data`factor_basis then
-            Include(~cg_data`factor_basis, p);
-            for _ in [#cg_data`factor_basis_count+1..Degree(p)] do
+    // Add supports of base_divisor and a divisor of degree one
+    degree_one_divisor := DivisorOfDegreeOne(F);
+    additional_places := Setseq(Seqset(Support(degree_one_divisor) cat Support(base_divisor)));
+    Sort(~additional_places, func<x, y | Degree(x) - Degree(y)>); // Factor basis must be sorted by degree
+    for p in additional_places do
+        if Degree(p) gt degree_bound then
+            Append(~cg_data`factor_basis, p);
+            for _ in [#cg_data`factor_basis_count+1 .. Degree(p)] do
                 Append(~cg_data`factor_basis_count, 0);
             end for;
             cg_data`factor_basis_count[Degree(p)] +:= 1;
-
-            CachePlaceData(~cg_data, p, #cg_data`factor_basis);
         end if;
     end for;
-end procedure;
 
-procedure CreateFactorBasis(F, ~cg_data, degree_bound)
-/*
-Creates the factor basis consisting of all places of degree at most degree_bound and a divisor of degree 1
-
-TODO: need to add the support of the base divisor to the factor basis
-*/
-    places := [Places(F, i) : i in [1..degree_bound]];
-    cg_data`factor_basis := {@ p : p in x, x in places @};
-    cg_data`factor_basis_count := [#x : x in places];
-
+    // Cache underlying places in k[t]
     cg_data`factor_basis_minima := AssociativeArray();
     cg_data`infinite_places := [];
     for i -> p in cg_data`factor_basis do
-        CachePlaceData(~cg_data, p, i);
+        if IsFinite(p) then
+            min := Minimum(p);
+            if IsDefined(cg_data`factor_basis_minima, min) then
+                Append(~cg_data`factor_basis_minima[min], i);
+            else
+                cg_data`factor_basis_minima[min] := [i];
+            end if;
+        else
+            Append(~cg_data`infinite_places, i);
+        end if;
     end for;
 
-    degree_one_divisor := DivisorOfDegreeOne(F);
-    AddSupportOfDivisorToFactorBasis(~cg_data, degree_one_divisor);
+    // Reset relation matrix
+    cg_data`relations := SparseMatrix(0, #cg_data`factor_basis);
+    cg_data`empty_columns := SequenceToSet([1..#cg_data`factor_basis]);
+    cg_data`rank := 0;
 end procedure;
 
 procedure InitializeClassGroupData(F)
+/*
+Initialize the classgroup_data record of the function field F.
+*/
     F`classgroup_data := rec<classgroup_data_format |
+        factor_basis_degree := 0,
+        factor_basis_count := [],
         is_complete := false,
         log := rec<log_format | relation_time := 0, rank_time := 0, h_time := 0, functions_tried := 0, relations_found := 0>
     >;
-    
-    // Compute best size for factor basis by estimating the number of functions needed to determine all relations
-    fb_bound := ClassGroupGenerationBound(F);
-    vprintf ClassGroup: "Counting places of degree at most %o...\n", fb_bound;
-    P := [NumberOfPlacesDegECF(F, i) : i in [1..fb_bound]] cat [#ConstantField(F)^d div d : d in [fb_bound+1..Genus(F)]];
-    estimated_cost := [&+[P[j] : j in [1..i]] * NumberOfSmoothDivisors(Genus(F), Genus(F), P) / NumberOfSmoothDivisors(Genus(F), i, P) : i in [fb_bound..Genus(F)]];
-    _, minimum_index := Minimum(estimated_cost);
-    fb_bound +:= minimum_index - 1;
-
-    vprintf ClassGroup: "Creating factor basis of places of degree at most %o...\n", fb_bound;
-    CreateFactorBasis(F, ~F`classgroup_data, fb_bound);
-
-    F`classgroup_data`relations := SparseMatrix(0, #F`classgroup_data`factor_basis);
-    F`classgroup_data`empty_columns := SequenceToSet([1..#F`classgroup_data`factor_basis]);
-    F`classgroup_data`rank := 0;
 
     h_approx := ClassNumberApproximation(F, Sqrt(2) - 1.001);
     h_lower_bound := Ceiling(h_approx / (Sqrt(2) - 0.001));
@@ -204,10 +222,10 @@ procedure InitializeClassGroupData(F)
     F`classgroup_data`h_bounds := [h_lower_bound, h_upper_bound];
 end procedure;
 
-function GenerateRandomDivisor(cg_data, max_degree)
+function GenerateRandomDivisor(cg_data, min_degree, max_degree)
 /*
-Returns a random maximal set of places of the factor basis of total degree less than max_degree. If the relation matrix
-has non-empty columns, guarantees that one of the places returned corresponds to such a column.
+Returns a random maximal set of places of the factor basis of total degree between min_degree and max_degree. If the
+relation matrix has non-empty columns, guarantees that one of the places returned corresponds to such a column.
 */
     indices := [];
     degree := 0;
@@ -220,7 +238,7 @@ has non-empty columns, guarantees that one of the places returned corresponds to
     end if;
 
     // Complete the remainder of the divisor with random places of F until the degree is as large as allowed
-    while degree lt max_degree do
+    while degree lt min_degree do
         max_possible_index := &+[n : i -> n in cg_data`factor_basis_count | i le max_degree - degree];
         if max_possible_index gt #indices then
             repeat
@@ -281,7 +299,12 @@ is supported on the factor basis. If so, also returns the decomposition of the d
     functions_tried := 0;
     for j in [1..#basis] do
         f := basis[j];
+        // Start at a random function in the vector space, to avoid repetition if we land in the same space twice
+        for k in [j+1..#basis] do
+            f +:= Random(ConstantField(Parent(f))) * basis[k];
+        end for;
         mult := [ConstantField(Parent(f))!0 : _ in [1..j-1]];
+
         while true do
             functions_tried +:= 1;
             b, rel := IsSupportedOnFactorBasis(cg_data, f);
@@ -320,7 +343,7 @@ Checks whether the computed relations span the whole relation lattice for the fa
     if cg_data`rank eq #cg_data`factor_basis - 1 then
         t := Cputime();
         cg_data`elementary_divisors := [n : n in ElementaryDivisors(cg_data`relations) | n ne 1];
-        cg_data`h := &*cg_data`elementary_divisors;
+        cg_data`h := #cg_data`elementary_divisors eq 0 select 1 else &*cg_data`elementary_divisors;
         log`latest_h_time := Cputime(t);
         log`h_time +:= log`latest_h_time;
 
@@ -333,7 +356,7 @@ Checks whether the computed relations span the whole relation lattice for the fa
     end if;
 end procedure;
 
-procedure FindRelations(~cg_data, ~log, fs)
+procedure FindRelations(~cg_data, ~log, fs, subtraction_degree)
 /*
 Computes relations between places of the factor basis by looking at random functions in the space spanned by the
 sequence of functions fs.
@@ -349,13 +372,14 @@ sequence of functions fs.
     last_relation_start := Cputime();
     last_progress_report := Realtime();
     while true do
-        indices := GenerateRandomDivisor(cg_data, #fs - 1);
+        indices := GenerateRandomDivisor(cg_data, subtraction_degree, #fs - 1);
         basis := RiemannRochBasis(fs, coefficients, indices);
         b, rel, functions_tried_for_basis := FindSmoothFunction(cg_data, basis);
         log`latest_functions_tried +:= functions_tried_for_basis;
         log`functions_tried +:= functions_tried_for_basis;
 
         if b then
+            // Relation found
             cg_data`relations := VerticalJoin(cg_data`relations, rel);
             for t in Eltseq(rel) do
                 Exclude(~cg_data`empty_columns, t[2]);
@@ -380,14 +404,14 @@ sequence of functions fs.
                 return;
             end if;
 
-            relation_rate := log`latest_relations_found / log`latest_relation_time;
+            relation_rate := log`latest_relations_found / Maximum(0.01, log`latest_relation_time);
             if cg_data`rank lt #cg_data`factor_basis - 1 then
                 next_rank_check +:= Max(
                     #cg_data`factor_basis - 1 - cg_data`rank,
-                    Ceiling(5 * relation_rate * log`latest_rank_time)); // Spend at least 5 times as long searching for relations than computing rank
+                    Ceiling(5 * relation_rate * Maximum(0.01, log`latest_rank_time))); // Spend at least 5 times as long searching for relations than computing rank
                 vprintf ClassGroup: "Rank: %o/%o. Next check in %o relations.\n", cg_data`rank, #cg_data`factor_basis - 1, next_rank_check - log`relations_found;
             else
-                next_rank_check +:= Max(1, Ceiling(5 * relation_rate * log`latest_h_time)); // Spend at least 5 times as long searching for relations than computing order
+                next_rank_check +:= Max(1, Ceiling(5 * relation_rate * Maximum(0.01, log`latest_h_time))); // Spend at least 5 times as long searching for relations than computing order
                 vprintf ClassGroup: "Full rank, order: %o. Next check in %o relations.\n", cg_data`h, next_rank_check - log`relations_found;
             end if;
 
@@ -396,7 +420,7 @@ sequence of functions fs.
     end while;
 end procedure;
 
-procedure ComputeClassGroupData(F : BaseDivisor := false)
+procedure ComputeClassGroupData(F : BaseDivisor := false, FactorBasisDegree := -1)
 /*
 Computes a factor basis and relation matrix for the function field F. The function field F must be given as an extension
 of the rational function field k(t) and defined over its exact constant field.
@@ -408,40 +432,87 @@ of the rational function field k(t) and defined over its exact constant field.
     if F`classgroup_data`is_complete then
         return;
     end if;
-
-    x := F ! BaseRing(F).1;
-    if BaseDivisor cmpeq false then
-        BaseDivisor := DivisorGroup(F) ! 0;
-        m := Ceiling((2 * Genus(F) + #F`classgroup_data`factor_basis_count) / Degree(x));
-    else
-        m := 0;
-    end if;
-
-    AddSupportOfDivisorToFactorBasis(~F`classgroup_data, BaseDivisor + m * Denominator(Divisor(x)));
-    if #F`classgroup_data`factor_basis gt Ncols(F`classgroup_data`relations) then
-        F`classgroup_data`empty_columns join:= SequenceToSet([Ncols(F`classgroup_data`relations)+1 .. #F`classgroup_data`factor_basis]);
-        F`classgroup_data`relations := HorizontalJoin(
-            F`classgroup_data`relations,
-            SparseMatrix(Nrows(F`classgroup_data`relations), #F`classgroup_data`factor_basis - Ncols(F`classgroup_data`relations)));
-    end if;
-
-    basis, basis_mult := ShortBasis(BaseDivisor);
-    fs := [basis[i] * x^j : j in [0..basis_mult[i] + m], i in [1..#basis]];
-
-    expected_degree := Degree(BaseDivisor) + m * Degree(x) - #fs + 1;
-    P := F`classgroup_data`factor_basis_count cat [#ConstantField(F)^d div d : d in [#F`classgroup_data`factor_basis_count+1..expected_degree]];
-    expected_smoothness_probability := NumberOfSmoothDivisors(expected_degree, #F`classgroup_data`factor_basis_count, P) / NumberOfSmoothDivisors(expected_degree, expected_degree, P);
-    vprintf ClassGroup: "Base divisor has degree %o and Riemann-Roch dimension %o\nLooking for %o-smooth divisors of degree %o\nExpected smoothness probability: %o\n",
-        (Degree(BaseDivisor) + m * Degree(x)), #fs, #F`classgroup_data`factor_basis_count, expected_degree, RealField(5)!expected_smoothness_probability;
     
-    FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs);
+    if FactorBasisDegree lt 1 then
+        FactorBasisDegree := ClassGroupGenerationBound(F);
+
+        // Ensure that the factor basis has at least 20 places, as having a very small factor basis can lead to issues
+        place_counts := [NumberOfPlacesDegECF(F, i) : i in [1..FactorBasisDegree]];
+        while &+place_counts lt 20 do
+            FactorBasisDegree +:= 1;
+            Append(~place_counts, NumberOfPlacesDegECF(F, FactorBasisDegree));
+        end while;
+    end if;
+
+    if BaseDivisor cmpeq false then
+        base_divisor := Denominator(Divisor(F ! BaseRing(F).1));
+    else
+        base_divisor := BaseDivisor;
+    end if;
+
+    // Check if the base divisor is supported on current factor basis
+    base_divisor_in_factor_basis := true;
+    for p in Support(base_divisor) do
+        if Degree(p) gt F`classgroup_data`factor_basis_degree then
+            if Degree(p) gt #F`classgroup_data`factor_basis_count then
+                base_divisor_in_factor_basis := false;
+                break;
+            end if;
+
+            start_index := &+[F`classgroup_data`factor_basis_count[i] : i in [1 .. Degree(p)-1]];
+            for i in [1..F`classgroup_data`factor_basis_count[Degree(p)]] do
+                if F`classgroup_data`factor_basis[start_index + i] eq p then
+                    continue p;
+                end if;
+            end for;
+            base_divisor_in_factor_basis := false;
+            break;
+        end if;
+    end for;
+
+    // Enlarge factor basis if necessary
+    if F`classgroup_data`factor_basis_degree lt FactorBasisDegree or not base_divisor_in_factor_basis then
+        vprintf ClassGroup: "Creating factor basis of places of degree at most %o...\n", FactorBasisDegree;
+        CreateFactorBasis(F, ~F`classgroup_data, FactorBasisDegree, base_divisor);
+    end if;
+
+    // If BaseDivisor is not user-specified, take a large enough multiple of the infinity divisor to (hopefully)
+    // ensure all relations can be found
+    if BaseDivisor cmpeq false then
+        m := Ceiling((2*Genus(F) + #F`classgroup_data`factor_basis_count) / Degree(base_divisor));
+        base_divisor := m * base_divisor;
+    end if;
+
+    fs := Basis(base_divisor);
+
+    // Set the degree of the subtraction divisors in the relation finding procedure so that the number of relations
+    // the procedure is expected to find is large enough. This is usually taken to be l(base_divisor) - 1, but can
+    // be smaller when there are very few rational places.
+    place_counts := [d le F`classgroup_data`factor_basis_degree select F`classgroup_data`factor_basis_count[d] else #ConstantField(F)^d div d : d in [1..Degree(base_divisor)]];
+    subtraction_degree := #fs;
+    expected_smooth_functions := 0;
+    repeat
+        subtraction_degree -:= 1;
+        unknown_degree := Degree(base_divisor) - subtraction_degree;
+        expected_smoothness_probability :=
+            NumberOfSmoothDivisors(unknown_degree, #F`classgroup_data`factor_basis_count, F`classgroup_data`factor_basis_count)
+                / NumberOfSmoothDivisors(unknown_degree, unknown_degree, place_counts);
+        accessible_functions := (#ConstantField(F)^(#fs - subtraction_degree) - 1) / (#ConstantField(F) - 1)
+            * NumberOfSmoothDivisorsDistinctSupport(subtraction_degree, #F`classgroup_data`factor_basis_count, F`classgroup_data`factor_basis_count);
+        expected_smooth_functions +:= expected_smoothness_probability * accessible_functions;
+    until expected_smooth_functions ge 10 * #F`classgroup_data`factor_basis or subtraction_degree eq #F`classgroup_data`factor_basis_count;
+
+    vprintf ClassGroup: "Base divisor has degree %o and Riemann-Roch dimension %o\nLooking for %o-smooth divisors of degree %o\nExpected smoothness probability: %o\n",
+        Degree(base_divisor), #fs, F`classgroup_data`factor_basis_degree, unknown_degree, RealField(5)!expected_smoothness_probability;
+        
+    FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs, subtraction_degree);
 end procedure;
 
-intrinsic ClassGroup(F::FldFun : BaseDivisor := false) -> GrpAb
+intrinsic ClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
 {The divisor class group of the function field F}
     F := ConstantFieldExtension(F, ExactConstantField(F)); // Ensure that the constant field of F is equal to its exact constant field
     F := RationalExtensionRepresentation(F);
-    ComputeClassGroupData(F : BaseDivisor := BaseDivisor);
+    ComputeClassGroupData(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
     
-    return AbelianGroup(F`classgroup_data`elementary_divisors);
+    return AbelianGroup(F`classgroup_data`elementary_divisors cat [0]);
 end intrinsic;

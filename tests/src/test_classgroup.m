@@ -3,7 +3,7 @@ procedure TestClassGroupCrv()
     f := 4*x^4 - y^4 - z^4;
     C := Curve(P,f);
     CG := ClassGroup(C);
-    TSTAssertEQ(Order(CG), 1);
+    TSTAssertEQ(AbelianInvariants(CG), [4, 4, 4, 0]);
 end procedure;
 
 
@@ -20,38 +20,14 @@ procedure TestClassGroupFldFunG()
     */
     traces := [
         [3,  0],
-        //[5,  2],
-/*
-the above  case fails with the following error:
-
-Loading "src/test_classgroup.m"
-
-TestClassGroupFldFunG(
-)
-ClassGroup(
-    F: F
-)
-ComputeClassGroupData(
-    F: F
-)
-InitializeClassGroupData(
-    F: F
-)
-In file "/tmp/CurveArith/src/classgroup.m", line 181, column 95:
->> fSmoothDivisors(Genus(F), Genus(F), P) / NumberOfSmoothDivisors(Genus(F), i
-                                          ^
-Runtime error in '/': Division by zero
-*/
+        [5,  2],
         [7,  0],
         [11, 0],
         [13, -6],
         [17,  2],
         [19,  0],
-        [23,  0]//,
-        //[29, 10]
-        /*
-        The case 29 gives the same error as 5
-        */
+        [23,  0],
+        [29, 10]
     ];
     for pair in traces do
         p := pair[1];
@@ -59,10 +35,9 @@ Runtime error in '/': Division by zero
         trace := pair[2];
         Kp := FunctionField(ChangeRing(f, GF(p)));
         time CG := ClassGroup(Kp);
-        TSTAssertEQ(Order(CG), (1 + p - trace)^3);
+        TSTAssertEQ(TorsionFreeRank(CG), 1);
+        TSTAssertEQ(Order(TorsionSubgroup(CG)), (1 + p - trace)^3);
     end for;
-
-
 end procedure;
 
 /*
