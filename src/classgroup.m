@@ -99,7 +99,7 @@ minimum valuation of all fs at p.
     coeff_field := ResidueClassField(p);
     evaluations := [];
     for f in fs do
-        if Valuation(f, p) gt vD then
+        if Valuation(f, p) gt vD then // TODO: should cache valuations instead of recomputing
             Append(~evaluations, coeff_field!0);
         else
             if assigned uniformizer then
@@ -500,18 +500,18 @@ of the rational function field k(t) and defined over its exact constant field.
         accessible_functions := (#ConstantField(F)^(#fs - subtraction_degree) - 1) / (#ConstantField(F) - 1)
             * NumberOfSmoothDivisorsDistinctSupport(subtraction_degree, #F`classgroup_data`factor_basis_count, F`classgroup_data`factor_basis_count);
         expected_smooth_functions +:= expected_smoothness_probability * accessible_functions;
-    until expected_smooth_functions ge 10 * #F`classgroup_data`factor_basis or subtraction_degree eq #F`classgroup_data`factor_basis_count;
+    until expected_smooth_functions ge 10 * #F`classgroup_data`factor_basis or subtraction_degree le #F`classgroup_data`factor_basis_count;
 
     vprintf ClassGroup: "Base divisor has degree %o and Riemann-Roch dimension %o\nLooking for %o-smooth divisors of degree %o\nExpected smoothness probability: %o\n",
         Degree(base_divisor), #fs, F`classgroup_data`factor_basis_degree, unknown_degree, RealField(5)!expected_smoothness_probability;
-        
+
     FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs, subtraction_degree);
 end procedure;
 
 intrinsic ClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
 {The divisor class group of the function field F}
-    F := ConstantFieldExtension(F, ExactConstantField(F)); // Ensure that the constant field of F is equal to its exact constant field
     F := RationalExtensionRepresentation(F);
+    F := ConstantFieldExtension(F, ExactConstantField(F)); // Ensure that the constant field of F is equal to its exact constant field
     ComputeClassGroupData(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
     
     return AbelianGroup(F`classgroup_data`elementary_divisors cat [0]);

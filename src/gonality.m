@@ -188,10 +188,10 @@ timing_data_format := recformat<place_degree_bound, places, divisors, place_enum
 
 intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
+    FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
         return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
     end if;
-    FF := RationalExtensionRepresentation(FF);
 
     start_time := Realtime();
     timing_data := rec<timing_data_format | place_degree_bound := 0, places := 0, divisors := 0, place_enumeration_time := 0, expansions_time := 0, riemann_roch_time := 0, timeout := false>;
@@ -289,6 +289,7 @@ If the parameter Bound is a positive integer then the return value d will always
 at most Bound + 1; And the meaning of d is as follows:
 If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
+    FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
         return DimensionOfExactConstantField(FF) * Gonality(ConstantFieldExtension(FF, ExactConstantField(FF)));
     end if;
