@@ -191,6 +191,7 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
     if DimensionOfExactConstantField(FF) ne 1 then
         return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
     end if;
+    FF := RationalExtensionRepresentation(FF);
 
     start_time := Realtime();
     timing_data := rec<timing_data_format | place_degree_bound := 0, places := 0, divisors := 0, place_enumeration_time := 0, expansions_time := 0, riemann_roch_time := 0, timeout := false>;
