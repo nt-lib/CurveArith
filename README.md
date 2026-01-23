@@ -3,7 +3,13 @@ Computes gonalities and class groups of curves over finite fields using Magma
 
 ## Requirements
 
-This package requires magma v2.28-3 or higher. If you want to reproduce the timing data then magma v2.28-19 or higher is needed due to the usage of [Fork](https://magma.maths.usyd.edu.au/magma/handbook/text/42#426) .
+This packages requires magma version v2.29-1 or higher.
+
+After installation it is recommended to run the automated test as described below in order to see wether CurveArith works correctly with your version of Magma.
+
+Some older versions are only partially supported. The end user code has been verified to work in magma versions as old as v2.28-3. If you want to reproduce the timing data then magma v2.28-19 or higher is needed due to the usage of [Fork](https://magma.maths.usyd.edu.au/magma/handbook/text/42#426) .
+
+
 
 ## Usage
 
