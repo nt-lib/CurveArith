@@ -1,10 +1,7 @@
-output_file := Open("output/classgroup_genus_0-13.csv", "w");
+output_file := Open("output/classgroup_x0.csv", "w");
 
-// Format is: <genus, q>
-testing_parameters := [<1, 2>, <4, 2>, <7, 2>, <10, 2>, <13, 2>, <1, 5>, <4, 5>, <7, 5>, <10, 5>, <13, 5>,
-    <1, 13>, <4, 13>, <7, 13>, <10, 13>, <1, 31>, <4, 31>, <7, 31>, <1, 59>, <4, 59>, <7, 59>, <1, 97>, <4, 97>];
-
-queue := [x : _ in [1..5], x in testing_parameters];
+// Format is: <level, q>
+queue := [<n, q> : q in [2, 3, 7, 17, 31, 59, 97], n in [1..150] | not n in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 18, 25] and not n mod q eq 0];
 
 // Basic multi-process implementation
 server_socket := Socket( : LocalHost := "localhost");
@@ -15,8 +12,6 @@ port := t[2];
 processes := 10;
 timeout := 3600;
 
-seed := GetSeed();
-
 i := 0;
 finished := 0;
 read_sockets := {};
@@ -24,34 +19,33 @@ last_progress := Realtime();
 while finished lt 2 * #queue do
     for _ in [1..Minimum(processes - #read_sockets div 2, #queue - i)] do
         i +:= 1;
-        seed +:= 1;
-        SetSeed(seed);
         pid := Fork();
 
         if pid eq 0 then
             SetMemoryLimit(2 * 10^9);
-            g, q := Explode(queue[i]);
-            while true do
-                try
-                    C := RandomCurveByGenus(g, GF(q));
-                    FF := AlgorithmicFunctionField(FunctionField(C));
-                    break;
-                catch e
-                    printf "Error in random curve generation (g=%o, q=%o)\n", g, q;
-                end try;
-            end while;
+            n, q := Explode(queue[i]);
+            try
+                C := ModularCurveQuotient(n, []);
+                C := ChangeRing(C, GF(q));
+                FF := AlgorithmicFunctionField(FunctionField(C));
+            catch e
+                printf "Error in curve generation: %o", e;
+                Socket(host, port);
+                Socket(host, port);
+                quit;
+            end try;
 
             pid := Fork();
             if pid eq 0 then
                 client_socket := Socket(host, port);
                 Alarm(timeout);
-                TimeClassGroupLinearAlgebra(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
+                TimeClassGroupLinearAlgebra(FF, n, output_file);
                 Write(client_socket, "done");
                 quit;
             else
                 client_socket := Socket(host, port);
                 Alarm(timeout);
-                TimeClassGroupOriginal(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
+                TimeClassGroupOriginal(FF, n, output_file);
                 Write(client_socket, "done");
                 quit;
             end if;
