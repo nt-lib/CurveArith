@@ -70,4 +70,3 @@ while finished lt 2 * #queue do
         last_progress := Realtime();
     end if;
 end while;
-quit;
