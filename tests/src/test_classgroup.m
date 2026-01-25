@@ -39,21 +39,6 @@ procedure TestClassGroupFldFunG()
     end for;
 end procedure;
 
-/*
+
 TestClassGroupCrv();
-the above currently failes with the following error:
-Loading "src/test_classgroup.m"
-
-TestClassGroup(
-)
-ClassGroup(
-    C: C
-)
-In file "/opt/magma2.28-3/package/Geometry/Crv/class_group.m", line 13, column 
-16:
->>     Cl, _, phi := ClassGroup(FF);
-                  ^
-Runtime error in :=: Expected to assign 3 value(s) but only computed 1 value(s)
-*/
-
 TestClassGroupFldFunG();
