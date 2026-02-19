@@ -1,67 +1,3 @@
-function UniformizingDifferential(omegas, x)
-/*
-Given a sequence omegas of differentials on a function field and a place x on the same function field,
-returns a differential of omegas with valuation 0 at x.
-*/
-    for omega in omegas do
-        if Valuation(Divisor(omega), x) eq 0 then
-            return omega;
-        end if;
-    end for;
-    error "No differential with valuation zero";
-end function;
-
-function UniformizingParameter(fs, x)
-/*
-Given a sequence fs of functions on a function field and a place x on the same function field,
-returns an element of the function field with valuation 1 at x.
-
-TODO: can remove fallback if X is hyperelliptic by computing a Weierstrass model uing IsHyperelliptic and working with functions on it
-*/
-    CF := ConstantField(FunctionField(x));
-    
-    for f in fs do
-        ux := Evaluate(MinimalPolynomial(Evaluate(f, x), CF), f);
-        if Valuation(ux, x) eq 1 then
-            return ux;
-        end if;
-    end for;
-    return UniformizingElement(x);
-end function;
-
-function DifferentialExpansionMatrices(omegas, x, d)
-/*
-Given a sequence omegas of differentials on a function field, a place x on the same function field,
-and a precision d, returns a sequence of d matrices, the ith of which encodes the ith coefficient of
-the Laurent series expansion of each differential of omegas at x.
-*/
-    F := FunctionField(x);
-    CFx := ResidueClassField(x);
-    CF := ConstantField(F);
-    du := UniformizingDifferential(omegas, x);
-    
-    fs := [F!RationalFunction(omega/du) : omega in omegas]; // Why does RationalFunction make Evaluate much faster in certain cases?
-    as := [Eltseq(Evaluate(f, x), CF) : f in fs];
-    expansions := [Matrix(as)];
-    
-    if d gt 1 then
-        u := UniformizingParameter(fs, x);
-        uinv := 1/u;
-        v := Lift(Generator(CFx, CF), x);
-        
-        for _ in [2..d] do
-            for i -> f in fs do
-                g := &+[c * v^(e-1) : e -> c in as[i]];
-                fs[i] := F!RationalFunction((f - g)*uinv);
-                as[i] := Eltseq(Evaluate(fs[i], x), CF);
-            end for;
-            Append(~expansions, Matrix(as));
-        end for;
-    end if;
-    
-    return expansions;
-end function;
-
 function IntegerSolutions(ns, d)
 /*
 Returns all nonnegative integer vectors [i1, ..., ik] such that i1*ns[1] + ... + ik*ns[k] = d
@@ -133,28 +69,111 @@ to loop over all divisors D of degree equal to #degree_counts.
     return divisors, divisors_tried;
 end function;
 
-function PrecomputePowerseriesExpansions(FF, places, precisions : MaximumTime := Infinity())
-    // The PowerseriesExpansions at all x in places
-    // up to precision precisions[deg(x)]
-    /*
-    Returns expansions, where expansions[i][j][k] stores the (k-1)th coordinate of the expansion of
-    the basis differentials of FF at degree i place places[i][j]. 
-    */
+function ReduceBasis(M)
+    K<x> := BaseRing(M);
+    row_degrees := [Maximum([Degree(f) : f in Eltseq(M[i])]) : i in [1..Nrows(M)]];
+    leading_coefficients := Matrix([[Coefficient(M[i, j], row_degrees[i]) : j in [1..Ncols(M)]] : i in [1..Nrows(M)]]);
+    T := IdentityMatrix(K, Nrows(M));
+
+    while true do
+        nullspace := NullspaceMatrix(leading_coefficients);
+        if Nrows(nullspace) eq 0 then
+            break;
+        end if;
+        nullvector := ChangeRing(nullspace[1], K);
+
+        nullvector_support := Setseq(Support(nullvector));
+        max_degree, max_degree_index := Maximum([row_degrees[i] : i in nullvector_support]);
+        max_degree_index := nullvector_support[max_degree_index];
+        for i in nullvector_support do
+            nullvector[i] *:= x^(max_degree - row_degrees[i]);
+        end for;
+        M[max_degree_index] := nullvector * M;
+        T[max_degree_index] := nullvector * T;
+        row_degrees[max_degree_index] := Maximum([Degree(f) : f in Eltseq(M[max_degree_index])]);
+        for i in [1..Ncols(M)] do
+            leading_coefficients[max_degree_index, i] := Coefficient(M[max_degree_index, i], row_degrees[max_degree_index]);
+        end for;
+    end while;
+
+    return M, row_degrees, T;
+end function;
+
+function RiemannRochSpaceComplement(D_fin, D_inf, D_fin_basis_matrix, D_inf_basis_matrix, exponents, P, d)
+    complement_matrices := [**];
+
+    if IsFinite(P) then
+        for i in [1..d] do
+            vs := Basis(D_fin * Ideal(P)^i);
+            M := Matrix([Eltseq(f) : f in vs]) * D_inf_basis_matrix;
+            denominator := LCM([Denominator(f) : f in Eltseq(M)]);
+            assert #Support(denominator) eq 1;
+            M := ChangeRing(denominator * M, Parent(denominator));
+            M_red, degrees, T := ReduceBasis(M);
+
+            nullspace := [];
+            for i in [1..Nrows(M_red)] do
+                for k in [-Degree(denominator)..-degrees[i]] do
+                    Append(~nullspace, [e lt k select 0 else Coefficient(M_red[i, j], e - k) : e in [-exponents[j]..0], j in [1..#exponents]]);
+                end for;
+            end for;
+
+            if #nullspace eq 0 then
+                Append(~complement_matrices, IdentityMatrix(BaseRing(BaseRing(M_red)), &+[Maximum(0, e + 1) : e in exponents]));
+            else
+                Append(~complement_matrices, Transpose(NullspaceMatrix(Transpose(Matrix(nullspace)))));
+            end if;
+        end for;
+    else
+        for i in [1..d] do
+            bs := Basis(D_inf * Ideal(P)^i);
+            M := D_fin_basis_matrix * Matrix([Eltseq(f) : f in bs])^-1;
+            denominator := LCM([Denominator(f) : f in Eltseq(M)]);
+            M := ChangeRing(denominator * M, Parent(denominator));
+            M_red, degrees, T := ReduceBasis(M);
+
+            nullspace := [];
+            for i in [1..Nrows(T)] do
+                for k in [0 .. Degree(denominator)-degrees[i]] do
+                    Append(~nullspace, [e lt k select 0 else Coefficient(T[i, j], e - k) : e in [0..exponents[j]], j in [1..#exponents]]);
+                end for;
+            end for;
+
+            if #nullspace eq 0 then
+                Append(~complement_matrices, IdentityMatrix(BaseRing(BaseRing(T)), &+[Maximum(0, e + 1) : e in exponents]));
+            else
+                Append(~complement_matrices, Transpose(NullspaceMatrix(Transpose(Matrix(nullspace)))));
+            end if;
+        end for;
+    end if;
+
+    return complement_matrices;
+end function;
+
+function PrecomputeRiemannRochSpaces(FF, places, precisions : MaximumTime := Infinity())
     start_time := Realtime();
-    expansions := <>;
-    differentials := BasisOfHolomorphicDifferentials(FF);
+
+    D := CanonicalDivisor(FF);
+    D_fin, D_inf := Ideals(D);
+    D_fin := D_fin^-1;
+    D_inf := D_inf^-1;
+    short_basis, exponents := ShortBasis(D);
+    D_fin_basis_matrix := Matrix([Eltseq(f) : f in short_basis]);
+    D_inf_basis_matrix := Matrix([Eltseq(f * x^exponents[i]) : i -> f in short_basis])^-1 where x := BaseRing(FF).1;
+
+    rr_complements := <>;
     for i in [1..#places] do
-        degree_i_expansions := [];
+        degree_i_complements := [];
         for x in places[i] do
-            Append(~degree_i_expansions, DifferentialExpansionMatrices(differentials, x, precisions[i]));
+            Append(~degree_i_complements, RiemannRochSpaceComplement(D_fin, D_inf, D_fin_basis_matrix, D_inf_basis_matrix, exponents, x, precisions[i]));
 
             if Realtime(start_time) ge MaximumTime then
                 return -1;
             end if;
         end for;
-        Append(~expansions, degree_i_expansions);
+        Append(~rr_complements, degree_i_complements);
     end for;
-    return expansions;
+    return rr_complements;
 end function;
 
 function DifferentialVanishingMatrix(expansions, D)
@@ -162,7 +181,7 @@ function DifferentialVanishingMatrix(expansions, D)
     // the divisor D
     // expansions: precomputed powerseries expansions at the different places
     // D: divisor in the format described in DivisorCandidatesByPartition
-    return HorizontalJoin(<expansions[i][j][k] : k in [1..n], j -> n in x, i -> x in D>);
+    return HorizontalJoin(<expansions[i][j][n] : j -> n in x, i -> x in D>);
 end function;
 
 function HasNonconstantFunction(D, powerseries_expansions)
@@ -179,7 +198,9 @@ end function;
 
 function HasNonconstantFunctionHess(D, places)
     divisor := &+[exponent * Divisor(places[degree][place]) : place -> exponent in multiset, degree -> multiset in D];
-    return Dimension(divisor) gt 1;
+    _, exponents := ShortBasis(divisor : Reduction := false, Simplification := "None");
+    dimension := &+[Maximum(0, e + 1) : e in exponents];
+    return dimension gt 1;
 end function;
 
 declare verbose Gonality, 1;
@@ -239,7 +260,7 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
             vprint Gonality: "Precomputing power series expansions";
             expansion_start_time := Cputime();
             precisions := [i eq 1 select d else (d - n1) div i : i in [1..d]];
-            powerseries_expansions := PrecomputePowerseriesExpansions(FF, places, precisions : MaximumTime := MaximumTime - Realtime(start_time));
+            powerseries_expansions := PrecomputeRiemannRochSpaces(FF, places, precisions : MaximumTime := MaximumTime - Realtime(start_time));
             timing_data`expansions_time := Cputime(expansion_start_time);
 
             if powerseries_expansions cmpeq -1 then
