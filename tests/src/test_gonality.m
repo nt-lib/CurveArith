@@ -10,15 +10,15 @@ f := 4*x^4 - y^4 - z^4;
 C5 := Curve(P,f);
 
 procedure TestHasFunctionOfDegreeAtMost()
-    TSTAssertEQ(HasFunctionOfDegreeAtMost(C3, 2), false);
-    TSTAssertEQ(HasFunctionOfDegreeAtMost(C3, 3), true);
-    TSTAssertEQ(HasFunctionOfDegreeAtMost(C5, 3), false);
-    TSTAssertEQ(HasFunctionOfDegreeAtMost(C5, 4), true);
+    TSTAssertEQ(CAHasFunctionOfDegreeAtMost(C3, 2), false);
+    TSTAssertEQ(CAHasFunctionOfDegreeAtMost(C3, 3), true);
+    TSTAssertEQ(CAHasFunctionOfDegreeAtMost(C5, 3), false);
+    TSTAssertEQ(CAHasFunctionOfDegreeAtMost(C5, 4), true);
 end procedure;
 
 procedure TestGonality()
-    TSTAssertEQ(Gonality(C3), 3);
-    TSTAssertEQ(Gonality(C5), 4);
+    TSTAssertEQ(CAGonality(C3), 3);
+    TSTAssertEQ(CAGonality(C5), 4);
 end procedure;
 
 

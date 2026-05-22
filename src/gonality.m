@@ -186,11 +186,11 @@ declare verbose Gonality, 1;
 
 timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
-intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
+intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
     FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
-        return HasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
+        return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
     end if;
 
     start_time := Realtime();
@@ -280,7 +280,7 @@ intrinsic HasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear
     end if;
 end intrinsic;
 
-intrinsic Gonality(FF::FldFun : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
+intrinsic CAGonality(FF::FldFun : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the function field FF. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -291,7 +291,7 @@ If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
-        return DimensionOfExactConstantField(FF) * Gonality(ConstantFieldExtension(FF, ExactConstantField(FF)));
+        return DimensionOfExactConstantField(FF) * CAGonality(ConstantFieldExtension(FF, ExactConstantField(FF)));
     end if;
 
     if Genus(FF) eq 0 then
@@ -305,7 +305,7 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     d := 1;
     while d ne Bound+1 do
         vprint Gonality: "Trying degree", d;
-        has_function := HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime - Realtime(start_time));
+        has_function := CAHasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime - Realtime(start_time));
         if has_function cmpeq -1 then
             // Timeout
             return -1;
@@ -317,13 +317,13 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     return d;
 end intrinsic;
 
-intrinsic HasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
+intrinsic CAHasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on C with degree at most d. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return HasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst);
+    return CAHasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst);
 end intrinsic;
 
-intrinsic Gonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
+intrinsic CAGonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the curve C. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -333,7 +333,7 @@ at most Bound + 1; And the meaning of d is as follows:
 If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return Gonality(FF : Bound := Bound, Method := Method, MaximumTime := MaximumTime);
+    return CAGonality(FF : Bound := Bound, Method := Method, MaximumTime := MaximumTime);
 end intrinsic;
 
 /* Example usage

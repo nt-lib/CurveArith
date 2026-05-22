@@ -2,7 +2,7 @@ procedure TestClassGroupCrv()
     P<x,y,z> := ProjectiveSpace(GF(3), 2);
     f := 4*x^4 - y^4 - z^4;
     C := Curve(P,f);
-    CG := ClassGroup(C);
+    CG := CAClassGroup(C);
     TSTAssertEQ(AbelianInvariants(CG), [4, 4, 4, 0]);
 end procedure;
 
@@ -33,7 +33,7 @@ procedure TestClassGroupFldFunG()
         p := pair[1];
         trace := pair[2];
         Kp := FunctionField(ChangeRing(f, GF(p)));
-        CG := ClassGroup(Kp);
+        CG := CAClassGroup(Kp);
         TSTAssertEQ(TorsionFreeRank(CG), 1);
         TSTAssertEQ(Order(TorsionSubgroup(CG)), (1 + p - trace)^3);
     end for;

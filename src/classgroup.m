@@ -508,11 +508,17 @@ of the rational function field k(t) and defined over its exact constant field.
     FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs, subtraction_degree);
 end procedure;
 
-intrinsic ClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
-{The divisor class group of the function field F}
+intrinsic CAClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
+{ The divisor class group of the function field F. }
     F := RationalExtensionRepresentation(F);
     F := ConstantFieldExtension(F, ExactConstantField(F)); // Ensure that the constant field of F is equal to its exact constant field
     ComputeClassGroupData(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
     
     return AbelianGroup(F`classgroup_data`elementary_divisors cat [0]);
+end intrinsic;
+
+intrinsic CAClassGroup(C::Crv[FldFin] : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
+{ The divisor class group of the curve C. }
+    F := AlgorithmicFunctionField(FunctionField(C));
+    return CAClassGroup(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
 end intrinsic;
