@@ -1,4 +1,5 @@
 output_file := Open("output/gonality_x0.csv", "w");
+fprintf output_file, "Level,Finite field,Genus,Degree,Method,Place degree bound,Places,Divisors,Places time,Expansions time,Riemann-Roch time,Timeout\n";
 
 // Format is: <level, q, d>
 queue := [

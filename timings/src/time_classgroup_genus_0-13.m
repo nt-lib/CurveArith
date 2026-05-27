@@ -1,4 +1,5 @@
 output_file := Open("output/classgroup_genus_0-13.csv", "w");
+fprintf output_file, "Function field,Finite field,Genus,Method,Class number,Time\n";
 
 // Format is: <genus, q>
 testing_parameters := [<1, 2>, <4, 2>, <7, 2>, <10, 2>, <13, 2>, <1, 5>, <4, 5>, <7, 5>, <10, 5>, <13, 5>,
@@ -51,7 +52,7 @@ while finished lt 2 * #queue do
             else
                 client_socket := Socket(host, port);
                 Alarm(timeout);
-                TimeClassGroupOriginal(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
+                TimeClassGroupMagma(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
                 Write(client_socket, "done");
                 quit;
             end if;

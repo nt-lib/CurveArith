@@ -1,4 +1,5 @@
 output_file := Open("output/classgroup_x0.csv", "w");
+fprintf output_file, "Level,Finite field,Genus,Method,Class number,Time\n";
 
 // Format is: <level, q>
 queue := [<n, q> : q in [2, 3, 7, 17, 31, 59, 97], n in [1..150] | not n in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 18, 25] and not n mod q eq 0];
@@ -45,7 +46,7 @@ while finished lt 2 * #queue do
             else
                 client_socket := Socket(host, port);
                 Alarm(timeout);
-                TimeClassGroupOriginal(FF, n, output_file);
+                TimeClassGroupMagma(FF, n, output_file);
                 Write(client_socket, "done");
                 quit;
             end if;
