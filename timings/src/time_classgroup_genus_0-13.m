@@ -1,5 +1,5 @@
 output_file := Open("output/classgroup_genus_0-13.csv", "w");
-fprintf output_file, "Function field,Finite field,Genus,Method,Class number,Time\n";
+fprintf output_file, "Function field,Finite field,Genus,Method,Class number,Time,Timeout\n";
 
 // Format is: <genus, q>
 testing_parameters := [<1, 2>, <4, 2>, <7, 2>, <10, 2>, <13, 2>, <1, 5>, <4, 5>, <7, 5>, <10, 5>, <13, 5>,
@@ -22,8 +22,8 @@ i := 0;
 finished := 0;
 read_sockets := {};
 last_progress := Realtime();
-while finished lt 2 * #queue do
-    for _ in [1..Minimum(processes - #read_sockets div 2, #queue - i)] do
+while finished lt #queue do
+    for _ in [1..Minimum(processes - #read_sockets, #queue - i)] do
         i +:= 1;
         seed +:= 1;
         SetSeed(seed);
@@ -31,6 +31,8 @@ while finished lt 2 * #queue do
 
         if pid eq 0 then
             SetMemoryLimit(2 * 10^9);
+            client_socket := Socket(host, port);
+
             g, q := Explode(queue[i]);
             while true do
                 try
@@ -38,26 +40,14 @@ while finished lt 2 * #queue do
                     FF := AlgorithmicFunctionField(FunctionField(C));
                     break;
                 catch e
-                    printf "Error in random curve generation (g=%o, q=%o)\n", g, q;
+                    printf "Error in random curve generation (g=%o, q=%o), retrying...\n", g, q;
                 end try;
             end while;
 
-            pid := Fork();
-            if pid eq 0 then
-                client_socket := Socket(host, port);
-                Alarm(timeout);
-                TimeClassGroupLinearAlgebra(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
-                Write(client_socket, "done");
-                quit;
-            else
-                client_socket := Socket(host, port);
-                Alarm(timeout);
-                TimeClassGroupMagma(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file);
-                Write(client_socket, "done");
-                quit;
-            end if;
+            TimeClassGroup(FF, &cat Split(Sprint(FF, "Magma"), "\n"), output_file : MaximumTime := timeout);
+            Write(client_socket, "done");
+            quit;
         else
-            Include(~read_sockets, WaitForConnection(server_socket));
             Include(~read_sockets, WaitForConnection(server_socket));
         end if;
     end for;
@@ -73,7 +63,7 @@ while finished lt 2 * #queue do
     end for;
 
     if Realtime(last_progress) ge 10 then
-        printf "Progress: %o/%o\n", finished, 2 * #queue;
+        printf "Progress: %o/%o\n", finished, #queue;
         last_progress := Realtime();
     end if;
 end while;

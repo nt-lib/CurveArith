@@ -53,7 +53,7 @@ while finished lt #queue do
                         break;
                     end if;
                 catch e
-                    print "Error in random curve generation";
+                    printf "Error in random curve generation (g=%o, q=%o), retrying...\n", g, q;
                 end try;
             end while;
             TimeHasFunctionOfDegreeAtMost(FF, (Genus(FF) + 3) div 2, &cat Split(Sprint(FF, "Magma"), "\n"), output_file : StopAfterFirst := false);

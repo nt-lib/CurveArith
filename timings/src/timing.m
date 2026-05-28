@@ -13,20 +13,51 @@ procedure TimeHasFunctionOfDegreeAtMost(FF, d, label, output_file : HessMaximumT
         timing_data`expansions_time, timing_data`riemann_roch_time, timing_data`timeout;
 end procedure;
 
-procedure TimeClassGroupLinearAlgebra(FF, label, output_file)
+procedure TimeClassGroup(FF, label, output_file : MaximumTime := Infinity())
     q := #ExactConstantField(FF);
     g := Genus(FF);
 
     start_time := Cputime();
-    G := CAClassGroup(FF);
-    fprintf output_file, "\"%o\",%o,%o,Linear algebra,%o,%o\n", label, q, g, Order(TorsionSubgroup(G)), Cputime(start_time);
-end procedure;
+    G := CAClassGroup(FF : MaximumTime := MaximumTime);
+    if G cmpeq -1 then
+        // Timeout
+        fprintf output_file, "\"%o\",%o,%o,Linear algebra,,%o,true\n", label, q, g, Cputime(start_time);
+    else
+        fprintf output_file, "\"%o\",%o,%o,Linear algebra,%o,%o,false\n", label, q, g, Order(TorsionSubgroup(G)), Cputime(start_time);
+    end if;
 
-procedure TimeClassGroupMagma(FF, label, output_file)
-    q := #ExactConstantField(FF);
-    g := Genus(FF);
+    // As the ClassNumber intrinsic does not provide a way to abort the calculation, we instead run the computation in
+    // a separate process, which is killed after the provided maximum time.
+    
+    // Set up a socket for inter-process communication
+    server_socket := Socket( : LocalHost := "localhost");
+    t := SocketInformation(server_socket);
+    host := t[1];
+    port := t[2];
 
-    start_time := Cputime();
-    h := ClassNumber(FF);
-    fprintf output_file, "\"%o\",%o,%o,Magma,%o,%o\n", label, q, g, h, Cputime(start_time);
+    pid := Fork();
+
+    if pid eq 0 then
+        // Child process
+        client_socket := Socket(host, port);
+
+        if IsFinite(MaximumTime) then
+            Alarm(MaximumTime);
+        end if;
+
+        h := ClassNumber(FF);
+        Write(client_socket, IntegerToString(h));
+        quit;
+    else
+        // Parent process
+        C := WaitForConnection(server_socket);
+        start_time := Realtime();
+        b, msg := ReadCheck(C);
+        if not b or IsEof(msg) then
+            // Child process terminated before finishing
+            fprintf output_file, "\"%o\",%o,%o,Magma,,%o,true\n", label, q, g, Realtime(start_time);
+        else
+            fprintf output_file, "\"%o\",%o,%o,Magma,%o,%o,false\n", label, q, g, msg, Realtime(start_time);
+        end if;
+    end if;
 end procedure;

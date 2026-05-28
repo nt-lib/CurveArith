@@ -356,11 +356,13 @@ Checks whether the computed relations span the whole relation lattice for the fa
     end if;
 end procedure;
 
-procedure FindRelations(~cg_data, ~log, fs, subtraction_degree)
+procedure FindRelations(~cg_data, ~log, fs, subtraction_degree : MaximumTime := Infinity())
 /*
 Computes relations between places of the factor basis by looking at random functions in the space spanned by the
 sequence of functions fs.
 */
+    start_time := Realtime();
+
     vprint ClassGroup: "Precomputing function expansions...";
     coefficients := PrecomputeLeadingCoefficients(fs, cg_data`factor_basis);
 
@@ -394,13 +396,13 @@ sequence of functions fs.
             last_progress_report := Realtime();
         end if;
 
-        if log`relations_found ge next_rank_check then
+        if log`relations_found ge next_rank_check or Realtime(start_time) gt MaximumTime then
             log`latest_relation_time +:= Cputime(last_relation_start);
             log`relation_time +:= Cputime(last_relation_start);
 
             CheckRelationLatticeCompleteness(~cg_data, ~log);
 
-            if cg_data`is_complete then
+            if cg_data`is_complete or Realtime(start_time) gt MaximumTime then
                 return;
             end if;
 
@@ -420,7 +422,7 @@ sequence of functions fs.
     end while;
 end procedure;
 
-procedure ComputeClassGroupData(F : BaseDivisor := false, FactorBasisDegree := -1)
+procedure ComputeClassGroupData(F : BaseDivisor := false, FactorBasisDegree := -1, MaximumTime := Infinity())
 /*
 Computes a factor basis and relation matrix for the function field F. The function field F must be given as an extension
 of the rational function field k(t) and defined over its exact constant field.
@@ -505,20 +507,24 @@ of the rational function field k(t) and defined over its exact constant field.
     vprintf ClassGroup: "Base divisor has degree %o and Riemann-Roch dimension %o\nLooking for %o-smooth divisors of degree %o\nExpected smoothness probability: %o\n",
         Degree(base_divisor), #fs, F`classgroup_data`factor_basis_degree, unknown_degree, RealField(5)!expected_smoothness_probability;
 
-    FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs, subtraction_degree);
+    FindRelations(~F`classgroup_data, ~F`classgroup_data`log, fs, subtraction_degree : MaximumTime := MaximumTime);
 end procedure;
 
-intrinsic CAClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
+intrinsic CAClassGroup(F::FldFun : BaseDivisor := false, FactorBasisDegree := -1, MaximumTime := Infinity()) -> GrpAb
 { The divisor class group of the function field F. }
     F := RationalExtensionRepresentation(F);
     F := ConstantFieldExtension(F, ExactConstantField(F)); // Ensure that the constant field of F is equal to its exact constant field
-    ComputeClassGroupData(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
+    ComputeClassGroupData(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree, MaximumTime := MaximumTime);
     
-    return AbelianGroup(F`classgroup_data`elementary_divisors cat [0]);
+    if F`classgroup_data`is_complete then
+        return AbelianGroup(F`classgroup_data`elementary_divisors cat [0]);
+    else
+        return -1;
+    end if;
 end intrinsic;
 
-intrinsic CAClassGroup(C::Crv[FldFin] : BaseDivisor := false, FactorBasisDegree := -1) -> GrpAb
+intrinsic CAClassGroup(C::Crv[FldFin] : BaseDivisor := false, FactorBasisDegree := -1, MaximumTime := Infinity()) -> GrpAb
 { The divisor class group of the curve C. }
     F := AlgorithmicFunctionField(FunctionField(C));
-    return CAClassGroup(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree);
+    return CAClassGroup(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree, MaximumTime := MaximumTime);
 end intrinsic;
