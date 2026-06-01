@@ -2,13 +2,11 @@ output_file := Open("output/classgroup_x0.csv", "w");
 fprintf output_file, "Level,Finite field,Genus,Method,Class number,Time,Timeout\n";
 
 // Format is: <level, q>
-queue := [<n, q> : q in [2, 3, 7, 17, 31, 59, 97], n in [1..150] | not n in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 18, 25] and not n mod q eq 0];
+queue := [<n, q> : q in [2, 3, 7, 17, 31, 59, 97], n in [1..139] | not n in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 18, 25] and not n mod q eq 0];
 
 // Basic multi-process implementation
 server_socket := Socket( : LocalHost := "localhost");
-t := SocketInformation(server_socket);
-host := t[1];
-port := t[2];
+host, port := Explode(SocketInformation(server_socket));
 
 processes := 10;
 timeout := 3600;
@@ -23,7 +21,7 @@ while finished lt #queue do
         pid := Fork();
 
         if pid eq 0 then
-            SetMemoryLimit(2 * 10^9);
+            // Worker
             client_socket := Socket(host, port);
 
             n, q := Explode(queue[i]);

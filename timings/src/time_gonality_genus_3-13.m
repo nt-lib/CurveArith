@@ -22,13 +22,9 @@ queue := [x : _ in [1..5], x in testing_parameters];
 
 // Basic multi-process implementation
 server_socket := Socket( : LocalHost := "localhost");
-t := SocketInformation(server_socket);
-host := t[1];
-port := t[2];
+host, port := Explode(SocketInformation(server_socket));
 
 processes := 5;
-
-seed := GetSeed();
 
 i := 0;
 finished := 0;
@@ -37,13 +33,13 @@ last_progress := Realtime();
 while finished lt #queue do
     for _ in [1..Minimum(processes - #read_sockets, #queue - i)] do
         i +:= 1;
-        seed +:= 1;
-        SetSeed(seed);
+        SetSeed(GetSeed() + 1); // Update seed so that each fork has a different initial seed
         pid := Fork();
 
         if pid eq 0 then
-            SetMemoryLimit(5 * 10^9);
+            // Worker
             client_socket := Socket(host, port);
+
             g, q, b := Explode(queue[i]);
             while true do
                 try
@@ -56,6 +52,7 @@ while finished lt #queue do
                     printf "Error in random curve generation (g=%o, q=%o), retrying...\n", g, q;
                 end try;
             end while;
+
             TimeHasFunctionOfDegreeAtMost(FF, (Genus(FF) + 3) div 2, &cat Split(Sprint(FF, "Magma"), "\n"), output_file : StopAfterFirst := false);
             Write(client_socket, "done");
             quit;

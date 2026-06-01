@@ -14,13 +14,9 @@ queue := [
 
 // Basic multi-process implementation
 server_socket := Socket( : LocalHost := "localhost");
-t := SocketInformation(server_socket);
-host := t[1];
-port := t[2];
+host, port := Explode(SocketInformation(server_socket));
 
 processes := 5;
-
-seed := GetSeed();
 
 i := 0;
 finished := 0;
@@ -29,17 +25,17 @@ last_progress := Realtime();
 while finished lt #queue do
     for _ in [1..Minimum(processes - #read_sockets, #queue - i)] do
         i +:= 1;
-        seed +:= 1;
-        SetSeed(seed);
         pid := Fork();
 
         if pid eq 0 then
-            SetMemoryLimit(20 * 10^9);
+            // Worker
             client_socket := Socket(host, port);
+
             n, q, d := Explode(queue[i]);
             C := ModularCurveQuotient(n, []);
             C := ChangeRing(C, GF(q));
             FF := AlgorithmicFunctionField(FunctionField(C));
+
             TimeHasFunctionOfDegreeAtMost(FF, d, n, output_file);
             Write(client_socket, "done");
             quit;

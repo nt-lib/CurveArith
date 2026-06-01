@@ -3,20 +3,17 @@ fprintf output_file, "Function field,Finite field,Genus,Method,Class number,Time
 
 // Format is: <genus, q>
 testing_parameters := [<1, 2>, <4, 2>, <7, 2>, <10, 2>, <13, 2>, <1, 5>, <4, 5>, <7, 5>, <10, 5>, <13, 5>,
-    <1, 13>, <4, 13>, <7, 13>, <10, 13>, <1, 31>, <4, 31>, <7, 31>, <1, 59>, <4, 59>, <7, 59>, <1, 97>, <4, 97>];
+    <1, 13>, <4, 13>, <7, 13>, <10, 13>, <13, 13>, <1, 31>, <4, 31>, <7, 31>, <10, 31>, <13, 31>, <1, 59>, <4, 59>,
+    <7, 59>, <10, 59>, <1, 97>, <4, 97>, <7, 97>, <10, 97>];
 
 queue := [x : _ in [1..5], x in testing_parameters];
 
 // Basic multi-process implementation
 server_socket := Socket( : LocalHost := "localhost");
-t := SocketInformation(server_socket);
-host := t[1];
-port := t[2];
+host, port := Explode(SocketInformation(server_socket));
 
 processes := 10;
 timeout := 3600;
-
-seed := GetSeed();
 
 i := 0;
 finished := 0;
@@ -25,12 +22,11 @@ last_progress := Realtime();
 while finished lt #queue do
     for _ in [1..Minimum(processes - #read_sockets, #queue - i)] do
         i +:= 1;
-        seed +:= 1;
-        SetSeed(seed);
+        SetSeed(GetSeed() + 1); // Update seed so that each fork has a different initial seed
         pid := Fork();
 
         if pid eq 0 then
-            SetMemoryLimit(2 * 10^9);
+            // Worker
             client_socket := Socket(host, port);
 
             g, q := Explode(queue[i]);
