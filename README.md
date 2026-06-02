@@ -20,10 +20,8 @@ Alternatively, you can add the above to your `.magmarc` file to load the package
 
 This package provides three intrinsics:
 - `CAClassGroup(C) : Crv[FldFin] -> GrpAb`  
-    `CAClassGroup(F) : FldFun -> GrpAb`
-
-    Computes the divisor class group of the curve C or the function field F.
-
+    `CAClassGroup(F) : FldFun -> GrpAb`  
+    Computes the divisor class group of the curve C or the function field F.  
     Takes three optional parameters:
     - `BaseDivisor: DivCrvElt/DivFunElt`  
         The base divisor defining the Riemann-Roch space in which to look for class group relations. If this is too small, the computation may not terminate. If omitted, an appropriate divisor is chosen heuristically.
@@ -33,26 +31,22 @@ This package provides three intrinsics:
         The maximum time (in seconds) after which the calculation is aborted. If omitted, no time limit is used.
 
 - `CAGonality(C) : Crv[FldFin] -> RngIntElt`  
-    `CAGonality(F) : FldFun -> RngIntElt`
-
-    Computes the gonality of the curve C or the function field F.
-
+    `CAGonality(F) : FldFun -> RngIntElt`  
+    Computes the gonality of the curve C or the function field F.  
     Takes three optional parameters:
     - `Bound: RngIntElt`  
         An upper bound for the degrees of functions to look for. If provided, the return value will be `Bound + 1` if the gonality exceeds `Bound`. Otherwise, or if omitted, the return value equals the gonality.
     - `Al: MonStgElt`  
-        The method to use for computing Riemann-Roch dimensions. The default, `"LinAlg"`, uses a linear algebra-based procedure described in [[1]](#citing). Can be set to `"Hess"` instead to use Magma's `Dimension` intrinsic instead, which may be faster on very small examples.
+        The method to use for computing Riemann-Roch dimensions. The default, `"LinAlg"`, uses a linear algebra-based procedure described in [[1]](#citing). Can be set to `"Hess"` to use Magma's `Dimension` intrinsic instead, which may be faster on very small examples.
     - `MaximumTime: RngReSubElt`  
         The maximum time (in seconds) after which the calculation is aborted. If omitted, no time limit is used.
 
 - `CAHasFunctionOfDegreeAtMost(C, d) : Crv[FldFin], RngIntElt -> BoolElt`  
-    `CAHasFunctionOfDegreeAtMost(F, d) : FldFun, RngIntElt -> BoolElt`
-
-    Returns whether there is a function on the curve C, or in the function field F, of degree at most d.
-
+    `CAHasFunctionOfDegreeAtMost(F, d) : FldFun, RngIntElt -> BoolElt`  
+    Returns whether there is a function on the curve C, or in the function field F, of degree at most d.  
     Takes four optional parameters:
     - `Al: MonStgElt`  
-        The method to use for computing Riemann-Roch dimensions. The default, `"LinAlg"`, uses a linear algebra-based procedure described in [[1]](#citing). Can be set to `"Hess"` instead to use Magma's `Dimension` intrinsic instead, which may be faster on very small examples.
+        The method to use for computing Riemann-Roch dimensions. The default, `"LinAlg"`, uses a linear algebra-based procedure described in [[1]](#citing). Can be set to `"Hess"` to use Magma's `Dimension` intrinsic instead, which may be faster on very small examples.
     - `MaximumTime: RngReSubElt`  
         The maximum time (in seconds) after which the calculation is aborted. If omitted, no time limit is used.
     - `TimingData : BoolElt`  
