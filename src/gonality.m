@@ -186,11 +186,11 @@ declare verbose Gonality, 1;
 
 timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
-intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
+intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on FF with degree at most d. }
     FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
-        return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData);
+        return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Al := Al, MaximumTime := MaximumTime, TimingData := TimingData);
     end if;
 
     start_time := Realtime();
@@ -234,8 +234,8 @@ intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Line
     timing_data`places := &+degree_counts;
     timing_data`place_enumeration_time := Cputime(place_start_time);
 
-    case Method:
-        when "Linear algebra":
+    case Al:
+        when "LinAlg":
             vprint Gonality: "Precomputing power series expansions";
             expansion_start_time := Cputime();
             precisions := [i eq 1 select d else (d - n1) div i : i in [1..d]];
@@ -260,7 +260,7 @@ intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Line
             g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time));
             timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         else:
-            error "Method must be \"Linear algebra\" or \"Hess\"";
+            error "Al must be \"LinAlg\" or \"Hess\"";
     end case;
 
     if g_d_1s cmpeq -1 then
@@ -280,7 +280,7 @@ intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Method := "Line
     end if;
 end intrinsic;
 
-intrinsic CAGonality(FF::FldFun : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
+intrinsic CAGonality(FF::FldFun : Bound := -1, Al := "LinAlg", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the function field FF. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -305,7 +305,7 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     d := 1;
     while d ne Bound+1 do
         vprint Gonality: "Trying degree", d;
-        has_function := CAHasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime - Realtime(start_time));
+        has_function := CAHasFunctionOfDegreeAtMost(FF, d : Al := Al, MaximumTime := MaximumTime - Realtime(start_time));
         if has_function cmpeq -1 then
             // Timeout
             return -1;
@@ -317,13 +317,13 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     return d;
 end intrinsic;
 
-intrinsic CAHasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Method := "Linear algebra", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
+intrinsic CAHasFunctionOfDegreeAtMost(C::Crv[FldFin], d::RngIntElt : Al := "LinAlg", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
 { Returns whether there is a function on C with degree at most d. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return CAHasFunctionOfDegreeAtMost(FF, d : Method := Method, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst);
+    return CAHasFunctionOfDegreeAtMost(FF, d : Al := Al, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst);
 end intrinsic;
 
-intrinsic CAGonality(C::Crv[FldFin] : Bound := -1, Method := "Linear algebra", MaximumTime := Infinity()) -> RngIntElt
+intrinsic CAGonality(C::Crv[FldFin] : Bound := -1, Al := "LinAlg", MaximumTime := Infinity()) -> RngIntElt
 { Computes the gonality of the curve C. The Bound parameter is a parameter specifying
 up to which degree to look for functions.
 
@@ -333,7 +333,7 @@ at most Bound + 1; And the meaning of d is as follows:
 If d <= Bound then d equals the gonality of FF;
 If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     FF := AlgorithmicFunctionField(FunctionField(C));
-    return CAGonality(FF : Bound := Bound, Method := Method, MaximumTime := MaximumTime);
+    return CAGonality(FF : Bound := Bound, Al := Al, MaximumTime := MaximumTime);
 end intrinsic;
 
 /* Example usage
