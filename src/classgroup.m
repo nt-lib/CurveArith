@@ -526,5 +526,10 @@ end intrinsic;
 intrinsic CAClassGroup(C::Crv[FldFin] : BaseDivisor := false, FactorBasisDegree := -1, MaximumTime := Infinity()) -> GrpAb
 { The divisor class group of the curve C. }
     F := AlgorithmicFunctionField(FunctionField(C));
-    return CAClassGroup(F : BaseDivisor := BaseDivisor, FactorBasisDegree := FactorBasisDegree, MaximumTime := MaximumTime);
+    if BaseDivisor cmpeq false then
+        base_divisor_fun := false;
+    else
+        base_divisor_fun := FunctionFieldDivisor(BaseDivisor);
+    end if;
+    return CAClassGroup(F : BaseDivisor := base_divisor_fun, FactorBasisDegree := FactorBasisDegree, MaximumTime := MaximumTime);
 end intrinsic;
