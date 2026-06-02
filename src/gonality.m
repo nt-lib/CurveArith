@@ -187,7 +187,7 @@ declare verbose Gonality, 1;
 timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
 intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
-{ Returns whether there is a function on FF with degree at most d. }
+{ Returns whether there is a function in FF with degree at most d. }
     FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
         return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Al := Al, MaximumTime := MaximumTime, TimingData := TimingData);
