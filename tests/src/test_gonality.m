@@ -21,6 +21,23 @@ procedure TestGonality()
     TSTAssertEQ(CAGonality(C5), 4);
 end procedure;
 
+// A hyperelliptic curve over F_3 without rational places; x has degree 2 and its poles form
+// a single place of degree 2, so it cannot be padded up to a divisor of degree 3.
+K<x> := FunctionField(GF(3));
+R<y> := PolynomialRing(K);
+F := FunctionField(y^2 - (2*x^8 + x^2 + 2));
+
+procedure TestHasFunctionOfDegreeAtMostNoRationalPlaces()
+    TSTAssertEQ(#Places(F, 1), 0);
+    for Al in ["LinAlg", "Hess"] do
+        TSTAssertEQ(CAHasFunctionOfDegreeAtMost(F, 1 : Al := Al), false);
+        TSTAssertEQ(CAHasFunctionOfDegreeAtMost(F, 2 : Al := Al), true);
+        TSTAssertEQ(CAHasFunctionOfDegreeAtMost(F, 3 : Al := Al), true);
+        TSTAssertEQ(CAGonality(F : Al := Al), 2);
+    end for;
+end procedure;
+
 
 TestHasFunctionOfDegreeAtMost();
 TestGonality();
+TestHasFunctionOfDegreeAtMostNoRationalPlaces();

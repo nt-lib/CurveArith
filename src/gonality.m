@@ -99,35 +99,39 @@ The integer n indicates how many places of degree 1 should be in D.
     return CartesianProduct([S1] cat [Multisets({1..degree_counts[i]}, degree_partition[i]) : i in [2..d]]);
 end function;
 
-function DivisorCandidates(degree_counts, n, cache, filter : First := false, MaximumTime := Infinity())
-/* Loop over all divisors D of degree equal to #degree_counts and return those that satisfy filter(D) eq true.  See DivisorCandidatesByPartition how divisors are
-represented.
+function DivisorCandidates(degree_counts, n, cache, filter : First := false, MaximumTime := Infinity(), MinimumDegree := #degree_counts)
+/* Loop over all divisors D of degree e with MinimumDegree <= e <= #degree_counts and return those that satisfy filter(D) eq true.
+See DivisorCandidatesByPartition how divisors are represented.
 Cache can be anything and will be passed to the filter function. It can be used to make sure that the filter function has access to
 precomputed data (like expansions of differentials at the different places).
 
 If First is true (default = false) then only return the first divisor that satisfies the filter
 
-The integer n gives a lower bound on how many places of degree 1 should be in the divisor D. So setting n=0 causes the code 
-to loop over all divisors D of degree equal to #degree_counts.
+The integer n gives a lower bound on how many places of degree 1 should be in the divisor D. So setting n=0 causes the code
+to loop over all divisors D of degree e.
+
+By default MinimumDegree = #degree_counts, i.e. only divisors of degree exactly #degree_counts are tried.
 */
     start_time := Realtime();
     d := #degree_counts;
     divisors := [];
     divisors_tried := 0;
-    for degree_partition0 in IntegerSolutions([1..Max(d - n, 1)], d - n) do
-        degree_partition := degree_partition0;
-        degree_partition[1] := degree_partition[1] + n;
-        vprint Gonality: "Testing divisors of shape", degree_partition;
-        for D in DivisorCandidatesByPartition(degree_counts, degree_partition, n) do
-            divisors_tried +:= 1;
-            if filter(D, cache) then
-                if First then return [D], divisors_tried; end if;
-                Append(~divisors, D);
-            end if;
+    for e in [Max(MinimumDegree, n)..d] do
+        for degree_partition0 in IntegerSolutions([1..Max(e - n, 1)], e - n) do
+            degree_partition := degree_partition0;
+            degree_partition[1] := degree_partition[1] + n;
+            vprint Gonality: "Testing divisors of shape", degree_partition;
+            for D in DivisorCandidatesByPartition(degree_counts, degree_partition, n) do
+                divisors_tried +:= 1;
+                if filter(D, cache) then
+                    if First then return [D], divisors_tried; end if;
+                    Append(~divisors, D);
+                end if;
 
-            if Realtime(start_time) ge MaximumTime then
-                return -1, divisors_tried;
-            end if;
+                if Realtime(start_time) ge MaximumTime then
+                    return -1, divisors_tried;
+                end if;
+            end for;
         end for;
     end for;
     return divisors, divisors_tried;
@@ -186,11 +190,16 @@ declare verbose Gonality, 1;
 
 timing_data_format := recformat<place_degree_bound, places, divisors, place_enumeration_time, expansions_time, riemann_roch_time, timeout>;
 
-intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true) -> BoolElt
-{ Returns whether there is a function in FF with degree at most d. }
+intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg", MaximumTime := Infinity(), TimingData := false, StopAfterFirst := true, LowerBound := 1) -> BoolElt
+{ Returns whether there is a function in FF with degree at most d.
+
+The optional parameter LowerBound can be used to tell the function that the caller already knows that FF has no
+nonconstant function of degree < LowerBound. This avoids redundant work when FF has no rational places, since
+then divisors of all degrees between LowerBound and d have to be tried. }
     FF := RationalExtensionRepresentation(FF);
     if DimensionOfExactConstantField(FF) ne 1 then
-        return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div DimensionOfExactConstantField(FF) : Al := Al, MaximumTime := MaximumTime, TimingData := TimingData);
+        k := DimensionOfExactConstantField(FF);
+        return CAHasFunctionOfDegreeAtMost(ConstantFieldExtension(FF, ExactConstantField(FF)), d div k : Al := Al, MaximumTime := MaximumTime, TimingData := TimingData, StopAfterFirst := StopAfterFirst, LowerBound := Ceiling(LowerBound / k));
     end if;
 
     start_time := Realtime();
@@ -234,6 +243,10 @@ intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg",
     timing_data`places := &+degree_counts;
     timing_data`place_enumeration_time := Cputime(place_start_time);
 
+    // If there are rational places then a function of degree < d gives one of degree d by adding
+    // rational places to its pole divisor. Otherwise we have to try all degrees >= LowerBound.
+    min_degree := n gt 0 select d else Max(LowerBound, 1);
+
     case Al:
         when "LinAlg":
             vprint Gonality: "Precomputing power series expansions";
@@ -253,11 +266,11 @@ intrinsic CAHasFunctionOfDegreeAtMost(FF::FldFun, d::RngIntElt : Al := "LinAlg",
             end if;
 
             riemann_roch_start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time));
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, powerseries_expansions, HasNonconstantFunction : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time), MinimumDegree := min_degree);
             timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         when "Hess":
             riemann_roch_start_time := Cputime();
-            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time));
+            g_d_1s, timing_data`divisors := DivisorCandidates(degree_counts, n, places, HasNonconstantFunctionHess : First := StopAfterFirst, MaximumTime := MaximumTime - Realtime(start_time), MinimumDegree := min_degree);
             timing_data`riemann_roch_time := Cputime(riemann_roch_start_time);
         else:
             error "Al must be \"LinAlg\" or \"Hess\"";
@@ -305,7 +318,7 @@ If d = Bound + 1 then d is a lowerbound for the gonality of FF. }
     d := 1;
     while d ne Bound+1 do
         vprint Gonality: "Trying degree", d;
-        has_function := CAHasFunctionOfDegreeAtMost(FF, d : Al := Al, MaximumTime := MaximumTime - Realtime(start_time));
+        has_function := CAHasFunctionOfDegreeAtMost(FF, d : Al := Al, MaximumTime := MaximumTime - Realtime(start_time), LowerBound := d);
         if has_function cmpeq -1 then
             // Timeout
             return -1;
